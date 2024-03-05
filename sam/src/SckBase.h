@@ -1,94 +1,96 @@
 #pragma once
 
-/* #define testing // Uncomment this line for running test protocol */
+// #define testing // Uncomment this line for running test protocol
 
 #include <Arduino.h>
 #include <RTCZero.h>
 #include <time.h>
 #include <SPI.h>
-#include "SdFat.h"
 #include "SAMD_pinmux_report.h"
 #include "wiring_private.h"
-#include <RHReliableDatagram.h>
-#include <RH_Serial.h>
 #include <FlashStorage.h>
 #include <ArduinoJson.h>
 #include <LinkedList.h>
 
+#include "SdFat.h"
+#define DISABLE_CHIP_SELECT pinCS_FLASH 
+
 #include "Pins.h"
 #include "SckLed.h"
 #include "SckBatt.h"
-#include "Shared.h"
 #include "Config.h"
 #include "Commands.h"
 #include "Sensors.h"
 #include "SckUrban.h"
 #include "SckAux.h"
 #include "SckList.h"
+#include "SckSerial.h"
 
 #include "version.h"
 
+#define IM_SAM
+
 class Status
-{
+    {
 
-	private:
-		uint32_t _lastTryMillis = 0; // ms
-		uint32_t _timeout; 	// ms
+    private:
+        uint32_t _lastTryMillis = 0; // ms
+        uint32_t _timeout;  // ms
 
-	public:
-		bool ok = false;
-		bool error = false;
-		uint8_t retrys = 0;
-		uint8_t _maxRetrys;
+    public:
+        bool ok = false;
+        bool error = false;
+        uint8_t retrys = 0;
+        uint8_t _maxRetrys;
 
-		bool retry();
-		void setOk();
-		void reset();
+        bool retry();
+        void setOk();
+        void reset();
 
-	Status(uint8_t maxRetrys=5, uint32_t timeout=1000)
-{
-		_maxRetrys = maxRetrys;
-		_timeout = timeout;
-}
-};
+        Status(uint8_t maxRetrys=5, uint32_t timeout=1000)
+        {
+            _maxRetrys = maxRetrys;
+            _timeout = timeout;
+        }
+    };
 
 struct SckState
 {
-	bool onShell = false;
-	bool onSetup = false;
-	bool espON = false;
-	bool espBooting = false;
-	bool wifiSet = false;
-	bool tokenSet = false;
-	bool tokenError = false;
-	bool helloPending = false;
-	SCKmodes mode = MODE_NET;
-	bool cardPresent = false;
-	bool cardPresentErrorPrinted = false;
-	bool sleeping = false;
-	bool publishPending = false;
-	bool dynamic = false;
-	Status wifiStat = Status(1, 60000);
-	Status timeStat = Status(2, 3000);
-	Status helloStat = Status(3, 5000);
-	Status infoStat = Status(3, 5000);
-	Status publishStat = Status(3, 5000);
-	errorType error = ERROR_NONE;
-	uint32_t lastWiFiError = 0;
-	uint16_t wifiErrorCounter = 0;
+    bool onShell = false;
+    bool onSetup = false;
+    bool espON = false;
+    bool espBooting = false;
+    bool wifiSet = false;
+    bool tokenSet = false;
+    bool tokenError = false;
+    bool helloPending = false;
+    SCKmodes mode = MODE_NET;
+    bool cardPresent = false;
+    bool cardPresentErrorPrinted = false;
+    bool sleeping = false;
+    bool publishPending = false;
+    bool dynamic = false;
+    Status wifiStat = Status(1, 60000);
+    Status timeStat = Status(2, 3000);
+    Status helloStat = Status(3, 5000);
+    Status infoStat = Status(3, 5000);
+    Status publishStat = Status(3, 5000);
+    errorType error = ERROR_NONE;
+    uint32_t lastWiFiError = 0;
+    uint16_t wifiErrorCounter = 0;
 
-	inline bool operator==(SckState a) {
-		if (	a.onSetup == onSetup
-				&& a.espON == espON
-				&& a.wifiSet == wifiSet
-				&& a.tokenSet == tokenSet
-				&& a.helloPending == helloPending
-				&& a.mode == mode
-				&& a.cardPresent == cardPresent
-				&& a.sleeping == sleeping
-		) return true;
-		else return false;
-	}
+    inline bool operator==(SckState a) {
+        if (    a.onSetup == onSetup
+            && a.espON == espON
+            && a.wifiSet == wifiSet
+            && a.tokenSet == tokenSet
+            && a.helloPending == helloPending
+            && a.mode == mode
+            && a.cardPresent == cardPresent
+            && a.sleeping == sleeping
+        ) return true;
+        else return false;
+    }
 };
 
 class SckBase
@@ -111,14 +113,10 @@ class SckBase
 		void enterSetup();
 
 		// ESP communication
-		uint8_t netPack[NETPACK_TOTAL_SIZE];
-		char netBuff[NETBUFF_SIZE];
 		void ESPbusUpdate();
-		void receiveMessage(SAMMessage wichMessage);
 		bool sendConfig();
 		uint32_t sendConfigTimer = 0;
 		uint8_t sendConfigCounter = 0;
-		bool pendingSyncConfig = false;
 		uint32_t generalUpdateTimer = 0;
 
 		// Button
@@ -131,21 +129,12 @@ class SckBase
 
 		// Configuration
 		void loadConfig();
+        bool createInfo(char* buffer, bool pretty=false);
 		bool publishInfo();
 		bool espInfoUpdated = false;
 		bool infoPublished = false;
 
-		// STORAGE
-		// files
-		struct SckFile {char name[16]; File file;};
-		SckFile configFile {"CONFIG.TXT"};
-		SckFile postFile {};
-		SckFile debugFile {"DEBUG.TXT"};
-		SckFile speedFile {"SPEED.CSV"};
-		SckFile infoFile {"INFO.TXT"};
-		SckFile errorFile {"ERROR.LOG"};
 		// Sd card
-		bool sdSelect();
 		volatile bool sdInitPending = false;
 		bool sdInit();
 		bool saveInfo();
@@ -165,6 +154,8 @@ class SckBase
 		bool timeToPublish = false;
 		void urbanStart();
 		void updateSensors();
+        uint32_t lastRSSIUpdate = 0;
+        bool getRSSI(OneSensor* wichSensor);
 		bool netPublish();
 		bool sdPublish(); 				//  Publishes the provided group of readings to sdcard (if available)
 		LinkedList<SensorType> pendingSensorsLinkedList;
@@ -180,8 +171,15 @@ class SckBase
 		void updateDynamic(uint32_t now);
 
 	public:
+#if defined(SCK21_AIR)
 		const String hardwareVer = "2.1";
-		const String SAMversion	= SAMverNum + "-" + String(__GIT_HASH__); 		// mayor.minor.build-gitcommit
+#elif defined(SCK22_AIR)
+		const String hardwareVer = "2.2";
+#else
+		// TODO At some point this will need to change.
+		const String hardwareVer = "2.1";
+#endif
+		const String SAMversion	= SAMverNum + "-" + String(__GIT_HASH__) + "-" + String(__GIT_BRANCH__); 		// mayor.minor.build-gitcommit-branch
 		const String SAMbuildDate = String(__ISO_DATE__);
 		String ESPversion = "not synced";
 		String ESPbuildDate = "not synced";
@@ -210,7 +208,7 @@ class SckBase
 		// **** Sensors
 		AllSensors sensors;
 		bool getReading(OneSensor *wichSensor);
-		bool controlSensor(SensorType wichSensorType, String wichCommand);
+		void controlSensor(SensorType wichSensorType, String wichCommand);
 		bool enableSensor(SensorType wichSensor);
 		bool disableSensor(SensorType wichSensor);
 		bool writeHeader = false;
@@ -238,20 +236,23 @@ class SckBase
 		uint32_t espFlashSpeed = 115200;
 
 		// ESP communication
-		bool sendMessage(ESPMessage wichMessage, const char *content);
-		bool sendMessage(ESPMessage wichMessage);
-		bool sendMessage();
+		bool ESPsend(SCKMessage wichMessage);
+		bool ESPsend(SCKMessage wichMessage, const char *content);
+		bool pendingSyncConfig = false;
 		String ipAddress;
 		char hostname[17];
 		void mqttCustom(const char *topic, const char *payload);
+		char* serESPBuffPtr;
 
 		// Output
 		const char *outLevelTitles[OUT_COUNT] PROGMEM = { "Silent", "Normal", "Verbose"	};
-		char outBuff[240];
+		char outBuff[NETBUFF_SIZE];
 		void sckOut(const char *strOut, PrioLevels priority=PRIO_MED, bool newLine=true);	// Accepts constant string
 		void sckOut(PrioLevels priority=PRIO_MED, bool newLine=true);
 		void prompt();
+#ifdef WITH_SENSOR_GROVE_OLED
 		void plot(String value, const char *title=NULL, const char *unit=NULL);
+#endif
 
 		// Button
 		volatile bool butState = true;
@@ -261,10 +262,24 @@ class SckBase
 		// Commands
 		AllCommands commands;
 
-		// SDcard
-		SdFat sd;
+		// Sd card Storage
+        FsFile sckFile;   // FAT16/FAT32 and exFAT support. For only FAT16/32 use "File32 sckFile;" (saves some flash). Also remember to change SdFs 
+        #define SD_CONFIG_NAME  "CONFIG.TXT"
+        #define SD_DEBUG_NAME   "DEBUG.TXT"
+        #define SD_SPEED_NAME   "SPEED.TXT"
+        #define SD_INFO_NAME    "INFO.TXT"
+        #define SD_ERROR_NAME   "ERROR.TXT"
+        #define SD_MONITOR_NAME "MONITOR.TXT"
+        SdFs sd;            // FAT16/FAT32 and exFAT support. For only FAT16/32 use "SdFat32 sd;" (saves some flash)
 		bool sdDetect();
-		SckFile monitorFile {"MONITOR.CSV"};
+        enum fileCom { FILECOM_LS, FILECOM_RM, FILECOM_LESS, FILECOM_ALLCSV };
+        void fileManager(fileCom command, const char* name);
+        uint16_t headerChkSum(char* fileName);
+        uint16_t headerChkSum(FsFile* thisFile);
+        uint16_t RAMheaderChkSum();
+        void saveHeader(FsFile* thisFile);
+
+
 
 		// Power
 		void sck_reset();
@@ -285,13 +300,13 @@ class SckBase
 			"sleep"				// modeTitles[MODE_SLEEP]
 		};
 
-#ifdef testing
-		const bool inTest = true;
-		friend class SckTest;
+#ifdef TESTING
+        const bool inTest = true;
+        friend class SckTest;
 #else
-		const bool inTest = false;
+        const bool inTest = false;
 #endif
-};
+    };
 
 bool I2Cdetect(TwoWire *_Wire, byte address);
 void ISR_button();

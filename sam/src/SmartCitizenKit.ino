@@ -1,52 +1,57 @@
 #include "SckBase.h"
 
-#ifdef testing
+#ifdef TESTING
 #include "SckTest.h"
 #endif
 
 SckBase base;
 
-#ifdef testing
+#ifdef TESTING
 SckTest sckTest(&base);
 #endif
 
 bool reset_pending = false;
 
 // Led update interrupt
-void TC5_Handler (void) {
-	base.led.tick();
-	TC5->COUNT16.INTFLAG.bit.MC0 = 1;
+void TC5_Handler (void)
+{
+    base.led.tick();
+    TC5->COUNT16.INTFLAG.bit.MC0 = 1;
 }
+
 // Button events interrupt
-void ISR_button() {
-	base.butState = digitalRead(pinBUTTON);
-#ifdef testing
-	sckTest.test_button();
+void ISR_button()
+{
+    base.butState = digitalRead(pinBUTTON);
+#ifdef TESTING
+    sckTest.test_button();
 #else
-	base.butFeedback();
+    base.butFeedback();
 #endif
 }
+
 // Card detect interrupt
-void ISR_sdDetect() {
-	base.sdDetect();
+void ISR_sdDetect()
+{
+    base.sdDetect();
 }
+
 // void ISR_alarm() {
-// 	base.wakeUp();
+//  base.wakeUp();
 // };
 
-void setup() {
+void setup()
+{
 
-	base.setup();
+    base.setup();
 
-#ifdef testing
-	sckTest.test_full();
+#ifdef TESTING
+    sckTest.test_full();
 #endif
 }
 
-void loop() {
-	base.update();
-}
-
-void serialEventRun() {
-	base.inputUpdate();
+void loop()
+{
+    base.update();
+    base.inputUpdate();
 }
